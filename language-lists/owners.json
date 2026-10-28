@@ -1,0 +1,9 @@
+{
+  "aurora": {
+    "users": ["Le0Gut"]
+  },
+  "nimbus": {
+    "users": [],
+    "environments": ["dev"]
+  }
+}

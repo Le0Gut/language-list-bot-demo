@@ -1,0 +1,32 @@
+name: Language list request
+
+on:
+  issues:
+    types: [opened, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  statuses: write
+
+jobs:
+  request:
+    # Labeling needs triage access, so only maintainers can trigger a retry.
+    if: >-
+      (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'language-list-request')) ||
+      (github.event.action == 'labeled' && github.event.label.name == 'language-list-retry')
+    # Each request works on its own branch from main, so only runs for the same issue need serializing.
+    concurrency:
+      group: language-list-issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const run = require('./scripts/language-list-request.js');
+            await run({ github, context, core });

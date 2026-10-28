@@ -1,0 +1,60 @@
+name: Language list change
+description: Request a change to the languages offered for a country in your product.
+title: "[language-list] "
+labels: ["language-list-request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only people listed for the product in `language-lists/owners.json` can request changes.
+        A bot validates the request and opens a pull request; a platform maintainer reviews and merges it.
+  - type: dropdown
+    id: product
+    attributes:
+      label: Product
+      options:
+        - aurora
+        - nimbus
+    validations:
+      required: true
+  - type: checkboxes
+    id: environments
+    attributes:
+      label: Environments
+      options:
+        - label: dev
+        - label: staging
+    validations:
+      required: true
+  - type: dropdown
+    id: change
+    attributes:
+      label: Change
+      options:
+        - Set languages for a country
+        - Remove a country
+    validations:
+      required: true
+  - type: input
+    id: country
+    attributes:
+      label: Country
+      description: ISO 3166-1 alpha-2 code, uppercase (e.g. US, DE).
+      placeholder: US
+    validations:
+      required: true
+  - type: input
+    id: locales
+    attributes:
+      label: Locales
+      description: Comma-separated locales, required for "Set languages". They must exist in the environment's region catalog.
+      placeholder: en-US, es-US
+    validations:
+      required: false
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason
+      description: Why is this change needed?
+    validations:
+      required: false
