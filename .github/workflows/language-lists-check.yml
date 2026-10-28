@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "environments/**"
+      - "argocd/**"
       - "language-lists/**"
       - "scripts/**"
       - "tools/**"
@@ -20,7 +21,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: values.yaml blocks match the product files
-        run: node tools/sync_values.js --check
+      - name: language-lists.json valid in every environment
+        run: node tools/check_language_lists.js
       - name: Bot logic and form
         run: node tools/local_test.js

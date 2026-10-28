@@ -1,9 +1,8 @@
-// Handles a "Language list change" issue: validate, check ownership, open a PR that only touches
-// environments/<env>/language-lists/<product>.json and the generated config block in environments/<env>/values.yaml.
-// Runs via actions/github-script.
+// Handles a "Language list change" issue: validate, check ownership, open a PR that only changes the requester's
+// product entry in environments/<env>/language-lists.json. Runs via actions/github-script.
 const fs = require('fs');
 const path = require('path');
-const { formatProductFile, renderValues } = require('./language-lists-sync.js');
+const { listPath, readList, formatList, assertOnlyProductChanged } = require('./language-lists.js');
 
 const ENV_ROOT = 'environments';
 const CHANGE_SET = 'Set languages for a country';
@@ -13,10 +12,6 @@ const LOCALE_RE = /^[a-z]{2}-[A-Z]{2}$/;
 
 function readJson(file) {
   return JSON.parse(fs.readFileSync(file, 'utf8'));
-}
-
-function listFilePath(env, product) {
-  return `${ENV_ROOT}/${env}/language-lists/${product}.json`;
 }
 
 // Values files keep each config as a single-quoted JSON string on one line, like a Helm env var.
@@ -98,13 +93,18 @@ function applyChange(req, root) {
   const updates = [];
   const errors = [];
   for (const env of req.environments) {
-    const file = listFilePath(env, req.product);
-    const full = path.join(root, file);
-    if (!fs.existsSync(full)) {
+    const file = listPath(env);
+    if (!fs.existsSync(path.join(root, file))) {
       errors.push(`\`${file}\` does not exist.`);
       continue;
     }
-    const data = readJson(full);
+    const list = readList(root, env);
+    const original = JSON.parse(JSON.stringify(list));
+    const data = list.find((p) => p.product === req.product);
+    if (!data) {
+      errors.push(`\`${env}\`: \`${req.product}\` has no entry in \`${file}\`. Ask a maintainer to add it.`);
+      continue;
+    }
     const before = data.countries[req.country];
     if (req.change === CHANGE_SET) {
       const { countries, regions } = loadServiceConfig(root, env);
@@ -130,11 +130,13 @@ function applyChange(req, root) {
     data.countries = Object.fromEntries(Object.entries(data.countries).sort(([a], [b]) => a.localeCompare(b)));
     const after = data.countries[req.country];
     if (JSON.stringify(before) === JSON.stringify(after)) continue;
-    updates.push({ env, file, content: formatProductFile(data), before, after });
-    updates.push({
-      env, file: `${ENV_ROOT}/${env}/values.yaml`, generated: true,
-      content: renderValues(root, env, { [`${req.product}.json`]: data }),
-    });
+    try {
+      assertOnlyProductChanged(original, list, req.product);
+    } catch (e) {
+      errors.push(`\`${env}\`: ${e.message}`);
+      continue;
+    }
+    updates.push({ env, file, content: formatList(list), before, after });
   }
   return { updates, errors };
 }
@@ -193,10 +195,10 @@ module.exports = async ({ github, context, core }) => {
 
   await github.rest.repos.createCommitStatus({
     owner, repo, sha: commit.data.sha, state: 'success', context: 'language-list/validation',
-    description: `Owner @${author} verified for ${req.product}; product file + generated values block only`,
+    description: `Owner @${author} verified for ${req.product}; only the ${req.product} entry changed`,
   });
 
-  const rows = updates.filter((u) => !u.generated).map((u) => `| \`${u.env}\` | \`${JSON.stringify(u.before ?? null)}\` | \`${JSON.stringify(u.after ?? null)}\` |`).join('\n');
+  const rows = updates.map((u) => `| \`${u.env}\` | \`${JSON.stringify(u.before ?? null)}\` | \`${JSON.stringify(u.after ?? null)}\` |`).join('\n');
   const prBody = [
     `Requested by @${author} in #${issue.number}.`,
     '',
@@ -208,7 +210,7 @@ module.exports = async ({ github, context, core }) => {
     '',
     req.reason ? `**Reason:** ${req.reason}` : '',
     '',
-    'The `APP_ACCOUNTS_LANGUAGELISTS` block in each `values.yaml` was regenerated from the product files.',
+    'Only the `' + req.product + '` entry of each `language-lists.json` changed (verified by the bot). Argo CD injects the file into the service config.',
     '',
     'Opened by the language-list bot. A maintainer must review and merge.',
   ].join('\n');

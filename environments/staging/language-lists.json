@@ -1,0 +1,20 @@
+[
+  {
+    "product": "aurora",
+    "clientIds": ["efdd0a91-9cb2-4131-87fb-d9b1ebae2833","397ea9f4-9ee3-407a-a59c-3692c3d812e2","c61eb56b-718a-433b-a5d9-0d0b20bd7d5d"],
+    "countries": {
+      "CA": ["en-US","fr-CA"],
+      "DE": ["de-DE"],
+      "US": ["en-US"]
+    }
+  },
+  {
+    "product": "nimbus",
+    "clientIds": ["cb4569bd-1ff5-4eee-8caf-c196fd424f2c","8c7096f5-5d18-4950-8b93-feaad92f0f52"],
+    "countries": {
+      "ES": ["es-ES"],
+      "FR": ["fr-FR"],
+      "US": ["en-US","es-US"]
+    }
+  }
+]

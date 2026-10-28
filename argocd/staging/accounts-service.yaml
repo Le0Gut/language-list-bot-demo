@@ -1,0 +1,28 @@
+# Fictional Argo CD Application for the demo. The language lists file is injected into the service config
+# with helm fileParameters (same as `helm template -f values.yaml --set-file ...`).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: accounts-service-staging
+  annotations:
+    argocd.argoproj.io/manifest-generate-paths: .
+spec:
+  project: demo
+  destination:
+    namespace: accounts-service-staging
+    name: demo-cluster
+  source:
+    repoURL: https://example.com/demo/deploy.git
+    targetRevision: main
+    path: environments/staging
+    helm:
+      valueFiles:
+        - values.yaml
+      fileParameters:
+        # commonConfigmaps[0] must stay the application properties ConfigMap.
+        - name: accounts-service.configMap.commonConfigmaps[0].data.APP_ACCOUNTS_LANGUAGELISTS
+          path: language-lists.json
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
