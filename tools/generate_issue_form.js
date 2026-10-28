@@ -53,7 +53,9 @@ ${envOpt}
     attributes:
       label: Change
       options:
-        - "Set languages for a country"
+        - "Add languages to a country"
+        - "Remove languages from a country"
+        - "Replace all languages for a country"
         - "Remove a country"
     validations:
       required: true
@@ -69,7 +71,7 @@ ${opt(countryOpts)}
     id: locales
     attributes:
       label: Locales
-      description: Required for Set languages. Pick every language the country should offer; they must be supported in the country's region.
+      description: "Add: only the new languages (current ones are kept). Remove languages: only the ones to drop. Replace: the full list. Not needed for Remove a country."
       multiple: true
       options:
 ${opt(localeOpts)}

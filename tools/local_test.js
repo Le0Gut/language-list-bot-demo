@@ -22,21 +22,24 @@ fs.cpSync(path.join(root, 'environments'), path.join(tmp, 'environments'), { rec
 
 const cases = [];
 const t = (name, fn) => cases.push([name, fn]);
+const ADD = 'Add languages to a country';
+const DROP = 'Remove languages from a country';
+const SET = 'Replace all languages for a country';
 
 t('parses dropdown labels into codes', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev', 'staging'], change: 'Set languages for a country', country: 'US (region NA)', locales: 'en-US - English (United States), es-US - Spanish (United States)' }));
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev', 'staging'], change: SET, country: 'US (region NA)', locales: 'en-US - English (United States), es-US - Spanish (United States)' }));
   assert.deepStrictEqual(r.environments, ['dev', 'staging']);
   assert.strictEqual(r.country, 'US');
   assert.deepStrictEqual(r.locales, ['en-US', 'es-US']);
 });
 
 t('country missing from an env countries map rejected', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['staging'], change: 'Set languages for a country', country: 'NL (region EU)', locales: 'nl-NL - Dutch (Netherlands)' }));
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['staging'], change: ADD, country: 'NL (region EU)', locales: 'nl-NL - Dutch (Netherlands)' }));
   assert.ok(applyChange(r, tmp).errors[0].includes('not in the countries map'));
 });
 
 t('locale from another region rejected', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: 'Set languages for a country', country: 'US (region NA)', locales: 'de-DE - German (Germany)' }));
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: ADD, country: 'US (region NA)', locales: 'de-DE - German (Germany)' }));
   assert.ok(applyChange(r, tmp).errors[0].includes('not supported in region `NA`'));
 });
 
@@ -45,32 +48,32 @@ t('committed issue form matches the catalog', () => {
 });
 
 t('owner can request their product', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: 'Set languages for a country', country: 'US', locales: 'en-US, es-US' }));
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: ADD, country: 'US', locales: 'en-US, es-US' }));
   assert.deepStrictEqual(validate(r, 'owner-a', owners, envs), []);
 });
 
 t('aurora owner cannot request nimbus', () => {
-  const r = parseIssueForm(form({ product: 'nimbus', envs: ['dev'], change: 'Set languages for a country', country: 'US', locales: 'en-US' }));
+  const r = parseIssueForm(form({ product: 'nimbus', envs: ['dev'], change: ADD, country: 'US', locales: 'en-US' }));
   assert.ok(validate(r, 'owner-a', owners, envs)[0].includes('not allowed'));
 });
 
 t('nimbus owner limited to dev', () => {
-  const r = parseIssueForm(form({ product: 'nimbus', envs: ['staging'], change: 'Set languages for a country', country: 'US', locales: 'en-US' }));
+  const r = parseIssueForm(form({ product: 'nimbus', envs: ['staging'], change: ADD, country: 'US', locales: 'en-US' }));
   assert.ok(validate(r, 'owner-n', owners, envs).some((x) => x.includes('in `staging`')));
 });
 
 t('bad country and locale formats rejected', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: 'Set languages for a country', country: 'usa', locales: 'english' }));
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: ADD, country: 'usa', locales: 'english' }));
   assert.strictEqual(validate(r, 'owner-a', owners, envs).length, 2);
 });
 
 t('locale outside the region catalog rejected', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: 'Set languages for a country', country: 'US', locales: 'xx-XX' }));
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: ADD, country: 'US', locales: 'xx-XX' }));
   assert.ok(applyChange(r, tmp).errors[0].includes('not supported in region'));
 });
 
-t('set changes only the product entry in each env file', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev', 'staging'], change: 'Set languages for a country', country: 'US', locales: 'en-US, es-US' }));
+t('add keeps current languages and changes only the product entry', () => {
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev', 'staging'], change: ADD, country: 'US', locales: 'es-US' }));
   const { updates, errors } = applyChange(r, tmp);
   assert.deepStrictEqual(errors, []);
   assert.deepStrictEqual(updates.map((u) => u.file), [
@@ -98,8 +101,28 @@ t('remove a missing country rejected', () => {
 });
 
 t('no-op request yields no updates', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: 'Set languages for a country', country: 'US', locales: 'en-US' }));
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: ADD, country: 'US', locales: 'en-US' }));
   assert.strictEqual(applyChange(r, tmp).updates.length, 0);
+});
+
+t('replace sets exactly the selected languages', () => {
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: SET, country: 'CA', locales: 'fr-CA' }));
+  const { updates } = applyChange(r, tmp);
+  assert.deepStrictEqual(updates[0].after, ['fr-CA']);
+});
+
+t('remove languages keeps the rest', () => {
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: DROP, country: 'CA', locales: 'fr-CA' }));
+  const { updates, errors } = applyChange(r, tmp);
+  assert.deepStrictEqual(errors, []);
+  assert.deepStrictEqual(updates[0].after, ['en-US']);
+});
+
+t('remove languages rejects unknown or emptying requests', () => {
+  const missing = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: DROP, country: 'CA', locales: 'es-US' }));
+  assert.ok(applyChange(missing, tmp).errors[0].includes('not in `CA`'));
+  const all = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: DROP, country: 'DE', locales: 'de-DE' }));
+  assert.ok(applyChange(all, tmp).errors[0].includes('Remove a country'));
 });
 
 let failed = 0;

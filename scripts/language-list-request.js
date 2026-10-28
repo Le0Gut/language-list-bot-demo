@@ -5,8 +5,12 @@ const path = require('path');
 const { listPath, readList, formatList, assertOnlyProductChanged } = require('./language-lists.js');
 
 const ENV_ROOT = 'environments';
-const CHANGE_SET = 'Set languages for a country';
+const CHANGE_ADD = 'Add languages to a country';
+const CHANGE_DROP = 'Remove languages from a country';
+const CHANGE_SET = 'Replace all languages for a country';
 const CHANGE_REMOVE = 'Remove a country';
+const CHANGES = [CHANGE_ADD, CHANGE_DROP, CHANGE_SET, CHANGE_REMOVE];
+const NEEDS_LOCALES = [CHANGE_ADD, CHANGE_DROP, CHANGE_SET];
 const COUNTRY_RE = /^[A-Z]{2}$/;
 const LOCALE_RE = /^[a-z]{2}-[A-Z]{2}$/;
 
@@ -79,9 +83,9 @@ function validate(req, author, owners, knownEnvs) {
     if (!knownEnvs.includes(env)) errors.push(`Unknown environment \`${env}\`.`);
     else if (owner.environments && !owner.environments.includes(env)) errors.push(`@${author} is not allowed to change \`${req.product}\` in \`${env}\`.`);
   }
-  if (![CHANGE_SET, CHANGE_REMOVE].includes(req.change)) errors.push(`Unknown change type \`${req.change}\`.`);
+  if (!CHANGES.includes(req.change)) errors.push(`Unknown change type \`${req.change}\`.`);
   if (!COUNTRY_RE.test(req.country)) errors.push(`Country \`${req.country}\` must be a 2-letter uppercase ISO code.`);
-  if (req.change === CHANGE_SET) {
+  if (NEEDS_LOCALES.includes(req.change)) {
     if (req.locales.length === 0) errors.push('Add at least one locale.');
     for (const l of req.locales) if (!LOCALE_RE.test(l)) errors.push(`Locale \`${l}\` must look like \`en-US\`.`);
   }
@@ -106,7 +110,7 @@ function applyChange(req, root) {
       continue;
     }
     const before = data.countries[req.country];
-    if (req.change === CHANGE_SET) {
+    if (req.change === CHANGE_ADD || req.change === CHANGE_SET) {
       const { countries, regions } = loadServiceConfig(root, env);
       const region = countries[req.country];
       if (!region) {
@@ -119,7 +123,25 @@ function applyChange(req, root) {
         errors.push(`\`${env}\`: ${unsupported.map((l) => `\`${l}\``).join(', ')} not supported in region \`${region}\` (country \`${req.country}\`).`);
         continue;
       }
-      data.countries[req.country] = [...new Set(req.locales)];
+      // Add keeps the current languages and appends the new ones; Replace uses only the selected ones.
+      const base = req.change === CHANGE_ADD ? (before || []) : [];
+      data.countries[req.country] = [...new Set([...base, ...req.locales])];
+    } else if (req.change === CHANGE_DROP) {
+      if (!before) {
+        errors.push(`\`${env}\`: \`${req.country}\` is not in the ${req.product} list.`);
+        continue;
+      }
+      const missing = req.locales.filter((l) => !before.includes(l));
+      if (missing.length) {
+        errors.push(`\`${env}\`: ${missing.map((l) => `\`${l}\``).join(', ')} not in \`${req.country}\` (current: ${before.join(', ')}).`);
+        continue;
+      }
+      const remaining = before.filter((l) => !req.locales.includes(l));
+      if (remaining.length === 0) {
+        errors.push(`\`${env}\`: removing every language would leave \`${req.country}\` empty. Use "${CHANGE_REMOVE}" instead.`);
+        continue;
+      }
+      data.countries[req.country] = remaining;
     } else {
       if (!before) {
         errors.push(`\`${env}\`: \`${req.country}\` is not in the ${req.product} list.`);
@@ -180,9 +202,12 @@ module.exports = async ({ github, context, core }) => {
     owner, repo, base_tree: baseCommit.data.tree.sha,
     tree: updates.map((u) => ({ path: u.file, mode: '100644', type: 'blob', content: u.content })),
   });
-  const summary = req.change === CHANGE_SET
-    ? `set ${req.country} to ${req.locales.join(', ')}`
-    : `remove ${req.country}`;
+  const summary = {
+    [CHANGE_ADD]: `add ${req.locales.join(', ')} to ${req.country}`,
+    [CHANGE_DROP]: `remove ${req.locales.join(', ')} from ${req.country}`,
+    [CHANGE_SET]: `set ${req.country} to ${req.locales.join(', ')}`,
+    [CHANGE_REMOVE]: `remove ${req.country}`,
+  }[req.change];
   const commit = await github.rest.git.createCommit({
     owner, repo, tree: tree.data.sha, parents: [baseSha],
     message: `update(language-lists): ${req.product} ${summary}\n\nRequested by @${author} in #${issue.number}`,
