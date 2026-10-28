@@ -2,13 +2,13 @@
 
 Demo of a self-service flow for per-product language lists. All data in this repo is fictional.
 
-People request a change with an issue form. A bot checks that they own the product, validates the request and opens a pull request that only touches that product's file and the generated config in `values.yaml`. A maintainer reviews and merges it.
+People request a change with an issue form. A bot checks that they own the product, validates the request and opens a pull request that only changes that product's entry in `language-lists.json`. A maintainer reviews and merges it.
 
 ## How the config is built
 
-The service reads one config per environment, `APP_ACCOUNTS_LANGUAGELISTS` in `environments/<env>/values.yaml`: a multi-line JSON array with one entry per product (`product`, `clientIds`, `countries`).
+Each environment has one file, `environments/<env>/language-lists.json`: a JSON array with one entry per product (`product`, `clientIds`, `countries`), one country per line so diffs stay small.
 
-The per-product files in `environments/<env>/language-lists/` are the source of truth. `node tools/sync_values.js` regenerates the `values.yaml` block from them (one country per line, so diffs stay small). The bot does the same in every PR, and the **Language lists check** workflow fails a PR when the two drift.
+The service reads it as one config, `APP_ACCOUNTS_LANGUAGELISTS`. Argo CD injects the file into the first ConfigMap of `values.yaml` with Helm `fileParameters` (see `argocd/<env>/accounts-service.yaml`), the same as `helm template -f values.yaml --set-file ...`. The file is the only copy of the lists; `values.yaml` does not repeat them.
 
 ## Try it
 
@@ -21,7 +21,7 @@ The per-product files in `environments/<env>/language-lists/` are the source of 
 | Rule | Where |
 |---|---|
 | Who can request changes for which product (and environments) | `language-lists/owners.json`, edited only by maintainers |
-| Which files a request can change | Built by the bot from the product and environment: `environments/<env>/language-lists/<product>.json`, plus the generated block in `environments/<env>/values.yaml` |
+| Which part of the file a request can change | Only the requester's product entry in `environments/<env>/language-lists.json`. The bot compares the array before and after and refuses the change if any other entry differs |
 | Who can merge | Ruleset on `main`: pull request with 1 approval from someone with write access |
 | Who can re-run a request | Maintainers, by adding the `language-list-retry` label |
 
@@ -31,10 +31,11 @@ The per-product files in `environments/<env>/language-lists/` are the source of 
 |---|---|
 | `.github/ISSUE_TEMPLATE/language-list-change.yml` | Request form, generated from `owners.json` and the values files: `node tools/generate_issue_form.js` |
 | `.github/workflows/language-list-request.yml` | Runs the bot on new requests |
-| `.github/workflows/language-lists-check.yml` | On PRs: values.yaml blocks match the product files, plus the local tests |
+| `.github/workflows/language-lists-check.yml` | On PRs: every `language-lists.json` is valid and injected by its Argo app, plus the local tests |
 | `scripts/language-list-request.js` | Parsing, ownership check, validation, PR creation |
-| `scripts/language-lists-sync.js` | Formats product JSON and renders the `APP_ACCOUNTS_LANGUAGELISTS` block |
-| `environments/<env>/values.yaml` | Service config per environment: `APP_ACCOUNTS_COUNTRIESMAP` (country -> region), `APP_ACCOUNTS_REGIONLANGUAGEMAP` (region -> supported languages) and the generated `APP_ACCOUNTS_LANGUAGELISTS`. Requested locales must be supported in the country's region |
-| `environments/<env>/language-lists/<product>.json` | Per-product list (source of truth): client IDs + country -> locales |
-| `tools/sync_values.js` | Regenerates the values.yaml blocks; `--check` fails on drift |
+| `scripts/language-lists.js` | Reads and formats `language-lists.json`; guard that only one product entry changed |
+| `environments/<env>/values.yaml` | Service config per environment: `APP_ACCOUNTS_COUNTRIESMAP` (country -> region) and `APP_ACCOUNTS_REGIONLANGUAGEMAP` (region -> supported languages). Requested locales must be supported in the country's region |
+| `environments/<env>/language-lists.json` | All product lists for the environment: client IDs + country -> locales |
+| `argocd/<env>/accounts-service.yaml` | Argo CD Application with the `fileParameters` entry that injects `language-lists.json` |
+| `tools/check_language_lists.js` | Validates the lists: format, unique products and client IDs, countries and locales supported, Argo wiring |
 | `tools/local_test.js` | Local checks: `node tools/local_test.js` |
