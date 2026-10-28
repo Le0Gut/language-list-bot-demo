@@ -15,3 +15,25 @@ accounts-service:
           APP_ACCOUNTS_DEFAULTLANGUAGE: en-US
           APP_ACCOUNTS_COUNTRIESMAP: '[{"country": "CA", "region": "NA"}, {"country": "MX", "region": "NA"}, {"country": "US", "region": "NA"}, {"country": "DE", "region": "EU"}, {"country": "ES", "region": "EU"}, {"country": "FR", "region": "EU"}, {"country": "IT", "region": "EU"}]'
           APP_ACCOUNTS_REGIONLANGUAGEMAP: '[{"region": "NA", "languages": [{"englishName": "English (United States)", "name": "en-US", "simpleName": "en", "nativeName": "English (United States)"}, {"englishName": "Spanish (United States)", "name": "es-US", "simpleName": "es", "nativeName": "Español (Estados Unidos)"}, {"englishName": "French (Canada)", "name": "fr-CA", "simpleName": "fr", "nativeName": "Français (Canada)"}]}, {"region": "EU", "languages": [{"englishName": "English (United Kingdom)", "name": "en-GB", "simpleName": "en", "nativeName": "English (United Kingdom)"}, {"englishName": "German (Germany)", "name": "de-DE", "simpleName": "de", "nativeName": "Deutsch (Deutschland)"}, {"englishName": "Spanish (Spain)", "name": "es-ES", "simpleName": "es", "nativeName": "Español (España)"}, {"englishName": "French (France)", "name": "fr-FR", "simpleName": "fr", "nativeName": "Français (France)"}, {"englishName": "Italian (Italy)", "name": "it-IT", "simpleName": "it", "nativeName": "Italiano (Italia)"}]}]'
+          # Generated from environments/staging/language-lists/*.json by tools/sync_values.js - do not edit by hand.
+          APP_ACCOUNTS_LANGUAGELISTS: |
+            [
+              {
+                "product": "aurora",
+                "clientIds": ["efdd0a91-9cb2-4131-87fb-d9b1ebae2833","397ea9f4-9ee3-407a-a59c-3692c3d812e2","c61eb56b-718a-433b-a5d9-0d0b20bd7d5d"],
+                "countries": {
+                  "CA": ["en-US","fr-CA"],
+                  "DE": ["de-DE"],
+                  "US": ["en-US"]
+                }
+              },
+              {
+                "product": "nimbus",
+                "clientIds": ["cb4569bd-1ff5-4eee-8caf-c196fd424f2c","8c7096f5-5d18-4950-8b93-feaad92f0f52"],
+                "countries": {
+                  "ES": ["es-ES"],
+                  "FR": ["fr-FR"],
+                  "US": ["en-US","es-US"]
+                }
+              }
+            ]

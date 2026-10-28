@@ -1,19 +1,9 @@
 {
   "product": "nimbus",
-  "clientIds": [
-    "cb4569bd-1ff5-4eee-8caf-c196fd424f2c",
-    "8c7096f5-5d18-4950-8b93-feaad92f0f52"
-  ],
+  "clientIds": ["cb4569bd-1ff5-4eee-8caf-c196fd424f2c","8c7096f5-5d18-4950-8b93-feaad92f0f52"],
   "countries": {
-    "ES": [
-      "es-ES"
-    ],
-    "FR": [
-      "fr-FR"
-    ],
-    "US": [
-      "en-US",
-      "es-US"
-    ]
+    "ES": ["es-ES"],
+    "FR": ["fr-FR"],
+    "US": ["en-US","es-US"]
   }
 }
