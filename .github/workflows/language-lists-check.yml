@@ -1,0 +1,26 @@
+name: Language lists check
+
+on:
+  pull_request:
+    paths:
+      - "environments/**"
+      - "language-lists/**"
+      - "scripts/**"
+      - "tools/**"
+      - ".github/ISSUE_TEMPLATE/**"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: values.yaml blocks match the product files
+        run: node tools/sync_values.js --check
+      - name: Bot logic and form
+        run: node tools/local_test.js

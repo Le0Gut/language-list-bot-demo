@@ -5,6 +5,7 @@ const os = require('os');
 const path = require('path');
 const { parseIssueForm, validate, applyChange } = require('../scripts/language-list-request.js');
 const { buildForm, FORM } = require('./generate_issue_form.js');
+const { readConfigBlock, loadProducts } = require('../scripts/language-lists-sync.js');
 
 const root = path.resolve(__dirname, '..');
 const owners = {
@@ -68,14 +69,28 @@ t('locale outside the region catalog rejected', () => {
   assert.ok(applyChange(r, tmp).errors[0].includes('not supported in region'));
 });
 
-t('set produces a one-file change per env', () => {
+t('set changes the product file and regenerates values.yaml per env', () => {
   const r = parseIssueForm(form({ product: 'aurora', envs: ['dev', 'staging'], change: 'Set languages for a country', country: 'US', locales: 'en-US, es-US' }));
   const { updates, errors } = applyChange(r, tmp);
   assert.deepStrictEqual(errors, []);
   assert.deepStrictEqual(updates.map((u) => u.file), [
     'environments/dev/language-lists/aurora.json',
+    'environments/dev/values.yaml',
     'environments/staging/language-lists/aurora.json',
+    'environments/staging/values.yaml',
   ]);
+  const config = readConfigBlock(updates[1].content);
+  assert.deepStrictEqual(config.map((p) => p.product), ['aurora', 'nimbus']);
+  assert.deepStrictEqual(config[0].countries.US, ['en-US', 'es-US']);
+  assert.ok(updates[1].content.includes('    "US": ["en-US","es-US"]'), 'one country per line');
+});
+
+t('committed values.yaml blocks match the product files', () => {
+  for (const env of envs) {
+    const config = readConfigBlock(fs.readFileSync(path.join(root, 'environments', env, 'values.yaml'), 'utf8'));
+    const products = loadProducts(root, env).sort((a, b) => a.product.localeCompare(b.product));
+    assert.deepStrictEqual(config, products, `${env} is out of sync, run: node tools/sync_values.js`);
+  }
 });
 
 t('remove a missing country rejected', () => {

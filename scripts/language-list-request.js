@@ -1,7 +1,9 @@
 // Handles a "Language list change" issue: validate, check ownership, open a PR that only touches
-// environments/<env>/language-lists/<product>.json. Runs via actions/github-script.
+// environments/<env>/language-lists/<product>.json and the generated config block in environments/<env>/values.yaml.
+// Runs via actions/github-script.
 const fs = require('fs');
 const path = require('path');
+const { formatProductFile, renderValues } = require('./language-lists-sync.js');
 
 const ENV_ROOT = 'environments';
 const CHANGE_SET = 'Set languages for a country';
@@ -128,7 +130,11 @@ function applyChange(req, root) {
     data.countries = Object.fromEntries(Object.entries(data.countries).sort(([a], [b]) => a.localeCompare(b)));
     const after = data.countries[req.country];
     if (JSON.stringify(before) === JSON.stringify(after)) continue;
-    updates.push({ env, file, content: JSON.stringify(data, null, 2) + '\n', before, after });
+    updates.push({ env, file, content: formatProductFile(data), before, after });
+    updates.push({
+      env, file: `${ENV_ROOT}/${env}/values.yaml`, generated: true,
+      content: renderValues(root, env, { [`${req.product}.json`]: data }),
+    });
   }
   return { updates, errors };
 }
@@ -187,10 +193,10 @@ module.exports = async ({ github, context, core }) => {
 
   await github.rest.repos.createCommitStatus({
     owner, repo, sha: commit.data.sha, state: 'success', context: 'language-list/validation',
-    description: `Owner @${author} verified for ${req.product}; only language-list files changed`,
+    description: `Owner @${author} verified for ${req.product}; product file + generated values block only`,
   });
 
-  const rows = updates.map((u) => `| \`${u.env}\` | \`${JSON.stringify(u.before ?? null)}\` | \`${JSON.stringify(u.after ?? null)}\` |`).join('\n');
+  const rows = updates.filter((u) => !u.generated).map((u) => `| \`${u.env}\` | \`${JSON.stringify(u.before ?? null)}\` | \`${JSON.stringify(u.after ?? null)}\` |`).join('\n');
   const prBody = [
     `Requested by @${author} in #${issue.number}.`,
     '',
@@ -201,6 +207,8 @@ module.exports = async ({ github, context, core }) => {
     rows,
     '',
     req.reason ? `**Reason:** ${req.reason}` : '',
+    '',
+    'The `APP_ACCOUNTS_LANGUAGELISTS` block in each `values.yaml` was regenerated from the product files.',
     '',
     'Opened by the language-list bot. A maintainer must review and merge.',
   ].join('\n');
