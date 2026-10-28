@@ -1,0 +1,17 @@
+# Fictional service values for the demo, shaped like a Helm umbrella chart override.
+accounts-service:
+  envName: dev
+  deployment:
+    replicas: 2
+  configMap:
+    enabled: true
+    commonConfigmaps:
+      - metadata:
+          name: accounts-service-application-properties
+          annotations: {}
+          labels: {}
+        data:
+          WEBPORT: "8080"
+          APP_ACCOUNTS_DEFAULTLANGUAGE: en-US
+          APP_ACCOUNTS_COUNTRIESMAP: '[{"country": "CA", "region": "NA"}, {"country": "MX", "region": "NA"}, {"country": "US", "region": "NA"}, {"country": "DE", "region": "EU"}, {"country": "ES", "region": "EU"}, {"country": "FR", "region": "EU"}, {"country": "IT", "region": "EU"}, {"country": "NL", "region": "EU"}]'
+          APP_ACCOUNTS_REGIONLANGUAGEMAP: '[{"region": "NA", "languages": [{"englishName": "English (United States)", "name": "en-US", "simpleName": "en", "nativeName": "English (United States)"}, {"englishName": "Spanish (United States)", "name": "es-US", "simpleName": "es", "nativeName": "Español (Estados Unidos)"}, {"englishName": "Spanish (Mexico)", "name": "es-MX", "simpleName": "es", "nativeName": "Español (México)"}, {"englishName": "French (Canada)", "name": "fr-CA", "simpleName": "fr", "nativeName": "Français (Canada)"}]}, {"region": "EU", "languages": [{"englishName": "English (United Kingdom)", "name": "en-GB", "simpleName": "en", "nativeName": "English (United Kingdom)"}, {"englishName": "German (Germany)", "name": "de-DE", "simpleName": "de", "nativeName": "Deutsch (Deutschland)"}, {"englishName": "Spanish (Spain)", "name": "es-ES", "simpleName": "es", "nativeName": "Español (España)"}, {"englishName": "French (France)", "name": "fr-FR", "simpleName": "fr", "nativeName": "Français (France)"}, {"englishName": "Italian (Italy)", "name": "it-IT", "simpleName": "it", "nativeName": "Italiano (Italia)"}, {"englishName": "Dutch (Netherlands)", "name": "nl-NL", "simpleName": "nl", "nativeName": "Nederlands (Nederland)"}]}]'

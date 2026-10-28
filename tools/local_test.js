@@ -23,15 +23,20 @@ const cases = [];
 const t = (name, fn) => cases.push([name, fn]);
 
 t('parses dropdown labels into codes', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev', 'staging'], change: 'Set languages for a country', country: 'US - United States', locales: 'en-US - English (United States), es-US - Spanish (United States)' }));
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev', 'staging'], change: 'Set languages for a country', country: 'US (region NA)', locales: 'en-US - English (United States), es-US - Spanish (United States)' }));
   assert.deepStrictEqual(r.environments, ['dev', 'staging']);
   assert.strictEqual(r.country, 'US');
   assert.deepStrictEqual(r.locales, ['en-US', 'es-US']);
 });
 
-t('country outside the catalog rejected', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: 'Set languages for a country', country: 'BR - Brazil', locales: 'en-US - English (United States)' }));
-  assert.ok(validate(r, 'owner-a', owners, envs, ['US', 'CA'])[0].includes('not in the catalog'));
+t('country missing from an env countries map rejected', () => {
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['staging'], change: 'Set languages for a country', country: 'NL (region EU)', locales: 'nl-NL - Dutch (Netherlands)' }));
+  assert.ok(applyChange(r, tmp).errors[0].includes('not in the countries map'));
+});
+
+t('locale from another region rejected', () => {
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: 'Set languages for a country', country: 'US (region NA)', locales: 'de-DE - German (Germany)' }));
+  assert.ok(applyChange(r, tmp).errors[0].includes('not supported in region `NA`'));
 });
 
 t('committed issue form matches the catalog', () => {
@@ -60,7 +65,7 @@ t('bad country and locale formats rejected', () => {
 
 t('locale outside the region catalog rejected', () => {
   const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: 'Set languages for a country', country: 'US', locales: 'xx-XX' }));
-  assert.ok(applyChange(r, tmp).errors[0].includes('not in the region catalog'));
+  assert.ok(applyChange(r, tmp).errors[0].includes('not supported in region'));
 });
 
 t('set produces a one-file change per env', () => {

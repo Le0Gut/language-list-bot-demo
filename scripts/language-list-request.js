@@ -17,8 +17,25 @@ function listFilePath(env, product) {
   return `${ENV_ROOT}/${env}/language-lists/${product}.json`;
 }
 
-// Dropdown options look like "US - United States"; keep only the code.
-const code = (label) => label.split(' - ')[0].trim();
+// Values files keep each config as a single-quoted JSON string on one line, like a Helm env var.
+function readEnvVar(valuesFile, name) {
+  for (const line of fs.readFileSync(valuesFile, 'utf8').split('\n')) {
+    const m = line.match(new RegExp(`^\\s*${name}:\\s*'(.*)'\\s*$`));
+    if (m) return JSON.parse(m[1].replace(/''/g, "'"));
+  }
+  throw new Error(`${name} not found in ${valuesFile}`);
+}
+
+// Same inputs the service uses at runtime: country -> region and region -> supported languages.
+function loadServiceConfig(root, env) {
+  const values = path.join(root, ENV_ROOT, env, 'values.yaml');
+  const countries = Object.fromEntries(readEnvVar(values, 'APP_ACCOUNTS_COUNTRIESMAP').map((c) => [c.country, c.region]));
+  const regions = Object.fromEntries(readEnvVar(values, 'APP_ACCOUNTS_REGIONLANGUAGEMAP').map((r) => [r.region, r.languages]));
+  return { countries, regions };
+}
+
+// Dropdown options look like "US (region NA)" or "es-US - Spanish (United States)"; keep only the code.
+const code = (label) => label.trim().split(/\s/)[0];
 
 // Issue forms render as "### <Label>\n\n<value>" sections.
 function parseIssueForm(body) {
@@ -49,7 +66,7 @@ function parseIssueForm(body) {
   };
 }
 
-function validate(req, author, owners, knownEnvs, knownCountries = null) {
+function validate(req, author, owners, knownEnvs) {
   const errors = [];
   const owner = owners[req.product];
   if (!owner) {
@@ -67,7 +84,6 @@ function validate(req, author, owners, knownEnvs, knownCountries = null) {
   }
   if (![CHANGE_SET, CHANGE_REMOVE].includes(req.change)) errors.push(`Unknown change type \`${req.change}\`.`);
   if (!COUNTRY_RE.test(req.country)) errors.push(`Country \`${req.country}\` must be a 2-letter uppercase ISO code.`);
-  else if (knownCountries && !knownCountries.includes(req.country)) errors.push(`Country \`${req.country}\` is not in the catalog.`);
   if (req.change === CHANGE_SET) {
     if (req.locales.length === 0) errors.push('Add at least one locale.');
     for (const l of req.locales) if (!LOCALE_RE.test(l)) errors.push(`Locale \`${l}\` must look like \`en-US\`.`);
@@ -89,11 +105,16 @@ function applyChange(req, root) {
     const data = readJson(full);
     const before = data.countries[req.country];
     if (req.change === CHANGE_SET) {
-      const catalog = readJson(path.join(root, ENV_ROOT, env, 'region-languages.json'));
-      const known = new Set(Object.values(catalog).flat());
-      const unknown = req.locales.filter((l) => !known.has(l));
-      if (unknown.length) {
-        errors.push(`\`${env}\`: ${unknown.map((l) => `\`${l}\``).join(', ')} not in the region catalog.`);
+      const { countries, regions } = loadServiceConfig(root, env);
+      const region = countries[req.country];
+      if (!region) {
+        errors.push(`\`${env}\`: \`${req.country}\` is not in the countries map.`);
+        continue;
+      }
+      const supported = new Set((regions[region] || []).map((l) => l.name));
+      const unsupported = req.locales.filter((l) => !supported.has(l));
+      if (unsupported.length) {
+        errors.push(`\`${env}\`: ${unsupported.map((l) => `\`${l}\``).join(', ')} not supported in region \`${region}\` (country \`${req.country}\`).`);
         continue;
       }
       data.countries[req.country] = [...new Set(req.locales)];
@@ -131,11 +152,10 @@ module.exports = async ({ github, context, core }) => {
   }
 
   const owners = readJson(path.join(root, 'language-lists', 'owners.json'));
-  const catalog = readJson(path.join(root, 'language-lists', 'catalog.json'));
   const knownEnvs = fs.readdirSync(path.join(root, ENV_ROOT));
   const req = parseIssueForm(issue.body);
 
-  const errors = validate(req, author, owners, knownEnvs, catalog.countries.map((c) => c.code));
+  const errors = validate(req, author, owners, knownEnvs);
   if (errors.length) return reject(errors);
 
   const { updates, errors: contentErrors } = applyChange(req, root);
@@ -201,3 +221,4 @@ module.exports = async ({ github, context, core }) => {
 module.exports.parseIssueForm = parseIssueForm;
 module.exports.validate = validate;
 module.exports.applyChange = applyChange;
+module.exports.loadServiceConfig = loadServiceConfig;
