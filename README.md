@@ -23,9 +23,10 @@ People request a change with an issue form. A bot checks that they own the produ
 
 | Path | Purpose |
 |---|---|
-| `.github/ISSUE_TEMPLATE/language-list-change.yml` | Request form |
+| `.github/ISSUE_TEMPLATE/language-list-change.yml` | Request form, generated from the catalog: `node tools/generate_issue_form.js` |
 | `.github/workflows/language-list-request.yml` | Runs the bot on new requests |
 | `scripts/language-list-request.js` | Parsing, ownership check, validation, PR creation |
+| `language-lists/catalog.json` | Countries and locales offered in the form dropdowns |
 | `environments/<env>/language-lists/<product>.json` | Per-product list: client IDs + country -> locales |
 | `environments/<env>/region-languages.json` | Locales allowed per region, used for validation |
 | `tools/local_test.js` | Local checks: `node tools/local_test.js` |
