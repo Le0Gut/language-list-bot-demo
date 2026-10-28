@@ -4,6 +4,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { parseIssueForm, validate, applyChange } = require('../scripts/language-list-request.js');
+const { buildForm, FORM } = require('./generate_issue_form.js');
 
 const root = path.resolve(__dirname, '..');
 const owners = {
@@ -21,10 +22,20 @@ fs.cpSync(path.join(root, 'environments'), path.join(tmp, 'environments'), { rec
 const cases = [];
 const t = (name, fn) => cases.push([name, fn]);
 
-t('parses the issue form', () => {
-  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev', 'staging'], change: 'Set languages for a country', country: 'US', locales: 'en-US, es-US' }));
+t('parses dropdown labels into codes', () => {
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev', 'staging'], change: 'Set languages for a country', country: 'US - United States', locales: 'en-US - English (United States), es-US - Spanish (United States)' }));
   assert.deepStrictEqual(r.environments, ['dev', 'staging']);
+  assert.strictEqual(r.country, 'US');
   assert.deepStrictEqual(r.locales, ['en-US', 'es-US']);
+});
+
+t('country outside the catalog rejected', () => {
+  const r = parseIssueForm(form({ product: 'aurora', envs: ['dev'], change: 'Set languages for a country', country: 'BR - Brazil', locales: 'en-US - English (United States)' }));
+  assert.ok(validate(r, 'owner-a', owners, envs, ['US', 'CA'])[0].includes('not in the catalog'));
+});
+
+t('committed issue form matches the catalog', () => {
+  assert.strictEqual(fs.readFileSync(FORM, 'utf8'), buildForm(), 'run: node tools/generate_issue_form.js');
 });
 
 t('owner can request their product', () => {

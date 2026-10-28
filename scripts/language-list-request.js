@@ -17,6 +17,9 @@ function listFilePath(env, product) {
   return `${ENV_ROOT}/${env}/language-lists/${product}.json`;
 }
 
+// Dropdown options look like "US - United States"; keep only the code.
+const code = (label) => label.split(' - ')[0].trim();
+
 // Issue forms render as "### <Label>\n\n<value>" sections.
 function parseIssueForm(body) {
   const sections = {};
@@ -34,19 +37,19 @@ function parseIssueForm(body) {
     .map((m) => m[1].trim());
   const locales = (sections['Locales'] || '')
     .split(',')
-    .map((l) => l.trim())
+    .map((l) => code(l))
     .filter(Boolean);
   return {
     product: (sections['Product'] || '').trim(),
     environments,
     change: (sections['Change'] || '').trim(),
-    country: (sections['Country'] || '').trim(),
+    country: code(sections['Country'] || ''),
     locales,
     reason: (sections['Reason'] || '').trim(),
   };
 }
 
-function validate(req, author, owners, knownEnvs) {
+function validate(req, author, owners, knownEnvs, knownCountries = null) {
   const errors = [];
   const owner = owners[req.product];
   if (!owner) {
@@ -64,6 +67,7 @@ function validate(req, author, owners, knownEnvs) {
   }
   if (![CHANGE_SET, CHANGE_REMOVE].includes(req.change)) errors.push(`Unknown change type \`${req.change}\`.`);
   if (!COUNTRY_RE.test(req.country)) errors.push(`Country \`${req.country}\` must be a 2-letter uppercase ISO code.`);
+  else if (knownCountries && !knownCountries.includes(req.country)) errors.push(`Country \`${req.country}\` is not in the catalog.`);
   if (req.change === CHANGE_SET) {
     if (req.locales.length === 0) errors.push('Add at least one locale.');
     for (const l of req.locales) if (!LOCALE_RE.test(l)) errors.push(`Locale \`${l}\` must look like \`en-US\`.`);
@@ -127,10 +131,11 @@ module.exports = async ({ github, context, core }) => {
   }
 
   const owners = readJson(path.join(root, 'language-lists', 'owners.json'));
+  const catalog = readJson(path.join(root, 'language-lists', 'catalog.json'));
   const knownEnvs = fs.readdirSync(path.join(root, ENV_ROOT));
   const req = parseIssueForm(issue.body);
 
-  const errors = validate(req, author, owners, knownEnvs);
+  const errors = validate(req, author, owners, knownEnvs, catalog.countries.map((c) => c.code));
   if (errors.length) return reject(errors);
 
   const { updates, errors: contentErrors } = applyChange(req, root);
